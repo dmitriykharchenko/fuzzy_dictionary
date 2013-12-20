@@ -55,59 +55,32 @@ Fuzzy = new () ->
       data: item
 
 
-  SearchTree = (raw_data) ->
+  SearchIndex = (raw_data, options) ->
+    @options = _.extend {}, @_default_options, options
     @paths = new StringsIndex()
     @tree = {}
     @_index = 0
+    @add_items raw_data
 
-    data_length = raw_data.length
-    chunk_size = 200
-    next_chunk_index = 0
-    worker = null
+    @
 
-    iterator = (item) =>
-      @add_item item
+  SearchIndex.prototype:: =
+    _default_options: 
+      min_string_length: 3
 
-    while next_chunk_index < data_length
-      if not worker
-        worker = M.utils.worker
-          data: raw_data.slice(next_chunk_index, next_chunk_index + chunk_size),
-          iterator: iterator
+    add_items: (raw_items) ->
+      batch.use(raw_data).each (raw_item) =>
+        raw_item.index = @_index++
+        item = helpers.process_item raw_item
 
-      else
-        worker.then
-          data: raw_data.slice(next_chunk_index, next_chunk_index + chunk_size),
-          iterator: iterator
-
-      next_chunk_index = Math.min(next_chunk_index + chunk_size, data_length)
-
-  SearchTree.prototype:: =
-    add_item: (raw_item) ->
-
-      raw_item.index = @_next_index()
-      item = helpers.process_item raw_item
-      @_add_paths_to_index item.paths_index
-
-      _.each item.paths, (path) =>
-        @_add_path path, item.data
-
-    _next_index: () ->
-      return @_index++
-
-    _add_paths_to_index: (paths) ->
-      _.each paths, (term) =>
-        self.paths.add term
-
-    _add_path: (path, data) ->
-      return if path.length < 3 and _.isNumber +path
-      @_construct_path @tree, path.split(''), data
+        _.each item.paths, (path) =>
+          @paths.add path
+          if @options.min_string_length < path.length
+            @_construct_path @tree, path.split(''), data
 
     _construct_path: (node, path_arr, data) ->
       _.each path_arr, (node_name) ->
-        if not node[node_name]
-          node[node_name] =
-            data: []
-
+        node[node_name] = node[node_name] or { data: [] }
         node = node[node_name]
         node.data.push data
 
@@ -189,40 +162,22 @@ Fuzzy = new () ->
       return _.uniq _.flatten _.map paths, (path) =>
         @get_node(path.value).node.data
 
-    soft_fuzzy_search: (term) ->
+    search: (term) ->
       @_get_items _.flatten @_possible_values term.toLowerCase()
-
-    strict_fuzzy_search: (term, term_price) ->
-      term = term.toLowerCase()
-      data = null
-      result = @_fuzzy_search(term)
-
-      if term_price
-        result = _.select result, (path_data) ->
-          M.utils.levenstain.calculate(term, path_data.value) <= term_price
-
-      if result.length < 5 && result.length isnt 0
-        term = _.min result, (result_term) ->
-          M.utils.levenstain.calculate(term, result_term.value)
-        .value
-        data = @get_node(term)
-
-      if data isnt null then data.node.data else []
     
 
-
   Dictionary = (@raw_list, @name) ->
-    @tree = new SearchTree @raw_list
+    @index = new SearchIndex @raw_list
     @
 
   Dictionary:: =
     _is_iata_regexp: new RegExp /^[a-zA-Z]*$/
 
-    strictly: (term) ->
-      if term then @tree.strict_fuzzy_search(term) else null
-    
-    softly: (term) ->
-      if term then @tree.soft_fuzzy_search(term) else null
+    search: (term) ->
+      if term then @index.search(term) else null
+
+    add_more_strings: (data) ->
+      @index.add_items data
 
 
   (raw_array) ->
