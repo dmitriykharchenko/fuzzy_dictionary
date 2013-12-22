@@ -1,4 +1,34 @@
 Fuzzy = new () ->
+
+  helpers =
+    splitter: new RegExp(/\s*-|,|\s\s*/)
+
+    get_search_strings: (item) ->
+      strings = item.index_strings.join("|").toLowerCase()
+      return _.uniq(strings.split("|"))
+
+    get_search_substrings: (strings) ->
+      collection = []
+      for string in strings
+        length = string.length
+        string = string.split ""
+
+        while 1 < length
+          collection.push string.join ""
+          string.pop()
+          length--
+      
+      collection
+
+
+    process_item: (item) ->
+      search_str = @get_search_strings item
+      
+      paths: search_str
+      paths_index: @get_search_substrings search_str
+      data: item
+
+      
   StringsList = () ->
     @list = {}
     @ 
@@ -24,36 +54,6 @@ Fuzzy = new () ->
       items = @index[length] or {}
       return items.list or {}
 
-  helpers =
-    splitter: new RegExp(/\s*-|,|\s\s*/)
-
-    get_search_strings: (item) ->
-      strings = item.index_strings.join("|").toLowerCase()
-      return _.uniq(strings.split("|"))
-
-    get_search_substrings: (strings) ->
-      collection = []
-      _.each strings, (string) =>
-        @_string_substrings(collection, string)
-      
-      collection
-
-    _string_substrings: (collection, string) ->
-      length = string.length
-      string = string.split ""
-
-      while 1 < length
-        collection.push string.join ""
-        string.pop()
-        length--
-
-    process_item: (item) ->
-      search_str = @get_search_strings item
-      
-      paths: search_str
-      paths_index: @get_search_substrings search_str
-      data: item
-
 
   SearchIndex = (raw_data, options) ->
     @options = _.extend {}, @_default_options, options
@@ -67,6 +67,11 @@ Fuzzy = new () ->
   SearchIndex.prototype:: =
     _default_options: 
       min_string_length: 3
+      prices:
+        3: 0,
+        5: 1,
+        7: 2,
+        20: 3
 
     add_items: (raw_items) ->
       batch.use(raw_data).each (raw_item) =>
@@ -114,19 +119,11 @@ Fuzzy = new () ->
 
       if eturn_data.status is "success" then return_data else null
 
-    prices:
-      3: 0,
-      5: 1,
-      7: 2,
-      20: 3
-
-    exact_search_price: 1
-
     _leve_price: (term) ->
       length = term.length
       last_price = 0
 
-      _.detect @prices, (price, word_length) ->
+      _.detect @options.prices, (price, word_length) ->
         return true if word_length > length
         last_price = price
         return false
