@@ -1,0 +1,21 @@
+{
+  "name": "fuzzy_dictionary",
+  "version": "0.0.1",
+  "main": "dist/fuzzy_dictionary.js",
+  "keywords": ["fuzzy", "search", "async", "extendable"],
+  "author": "Dmitriy Kharchenko <akimoto@yandex.ru>",
+  "description": "Extendable fuzzy search dictionary",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aki-russia/fuzzy_dictionary.git"
+  },
+  "ignore": [
+    "**/.*",
+    ".grunt",
+    "node_modules",
+    "components"
+  ],
+  "dependencies": {
+    "batchjs": "*"
+  }
+}
