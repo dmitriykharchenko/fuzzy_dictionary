@@ -17,21 +17,104 @@ Fuzzy = new () ->
           collection.push string.join ""
           string.pop()
           length--
-      
+
       collection
 
 
     process_item: (item) ->
       search_str = @get_search_strings item
-      
+
       paths: search_str
       paths_index: @get_search_substrings search_str
       data: item
 
-      
+
+  levenstain = new () ->
+
+    DistanceMatrix = () ->
+      @matrix = {}
+      @
+
+    DistanceMatrix:: =
+      set: (x, y, value) ->
+        @matrix[ x + "_" + y ] = value;
+
+      get: (x, y) ->
+        @matrix[ x + "_" + y ];
+
+
+    operation_price: 1
+    change_price: 1
+    insert_delete_price: 2
+
+    _change_price: (a, b) ->
+      price = 0;
+      if((a is "" or b is "") and (a isnt b))
+        price = @insert_delete_price;
+      else
+        price = if a is b then 0 else 1
+
+      price;
+
+
+    calculate: (string_x, string_y) ->
+      @_calculate_length
+        string_x: string_x
+        string_y: string_y
+        distances: new DistanceMatrix()
+        stop: false
+
+
+    _calculate_distance: (i, j, state) ->
+      char_ix = state.string_x.charAt(i - 1)
+      char_jy = state.string_y.charAt(j - 1)
+
+      change_symbol_price = @_change_price char_ix, char_jy
+
+      if(i is 0 and j is 0)
+        return state.distances.set 0, 0, 0
+
+      if(i is 0 and 0 < j)
+        return state.distances.set 0, j, j
+
+      if(j is 0 and 0 < i)
+        return state.distances.set i, 0, i
+
+      a = state.distances.get(i - 1, j) + 1
+      b = state.distances.get(i, j - 1) + 1
+      c = state.distances.get(i - 1, j - 1) + change_symbol_price
+
+      state.distances.set i, j, Math.min a, b, c
+
+
+    _calculate_length: (state) ->
+      x_length = state.string_x.length,
+      y_length = state.string_y.length;
+
+      @_calculate_distance 0, 0, state
+
+      j = 1
+      while(j <= y_length)
+        @_calculate_distance 0, j, state
+        j++
+
+      i = 1
+      while(i <= x_length)
+        @_calculate_distance i, 0, state
+        j = 1
+
+        while(j <= y_length)
+          @_calculate_distance i, j, state
+          j++
+
+        i++;
+
+
+      state.distances.get(x_length, y_length);
+
   StringsList = () ->
     @list = {}
-    @ 
+    @
 
   StringsList:: =
     add: (item) ->
@@ -47,7 +130,7 @@ Fuzzy = new () ->
       length = item.length
       if not @index.hasOwnProperty length
         @index[length] = new StringsList()
-      
+
       @index[length].add item
 
     get_items_by_length: (length) ->
@@ -65,7 +148,7 @@ Fuzzy = new () ->
     @
 
   SearchIndex.prototype:: =
-    _default_options: 
+    _default_options:
       min_string_length: 3
       prices:
         3: 0,
@@ -110,11 +193,11 @@ Fuzzy = new () ->
             path_length = return_data.path.length
             return_data.status = "error"
           break
-        
+
         return_data.path += next_node_name
         node = node[next_node_name]
         next_node_name = node_names.shift()
-      
+
       return_data.node = node
 
       if eturn_data.status is "success" then return_data else null
@@ -127,7 +210,7 @@ Fuzzy = new () ->
         return true if word_length > length
         last_price = price
         return false
-      
+
       last_price
 
 
@@ -135,7 +218,7 @@ Fuzzy = new () ->
       price = @_leve_price term
       _.select words, (data, word) ->
         if _.uniq((word + term).split("")).length <= length_price)
-          M.utils.levenstain.calculate(term, word) <= price
+          levenstain.calculate(term, word) <= price
 
     _possible_values: (term) ->
       possible_paths = []
@@ -148,7 +231,7 @@ Fuzzy = new () ->
         search_words = @paths.get_items_by_length(string_length)
         length_price = term_letters_count + i + 1
         possible_paths.push(@_check_array(search_words, term.substr(0, string_length), length_price))
-      
+
       possible_paths
 
     _fuzzy_search: (term) ->
@@ -161,7 +244,7 @@ Fuzzy = new () ->
 
     search: (term) ->
       @_get_items _.flatten @_possible_values term.toLowerCase()
-    
+
 
   Dictionary = (@raw_list, @name) ->
     @index = new SearchIndex @raw_list
