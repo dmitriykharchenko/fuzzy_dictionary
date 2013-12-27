@@ -37,10 +37,10 @@ Fuzzy = new () ->
 
     DistanceMatrix:: =
       set: (x, y, value) ->
-        @matrix[ x + "_" + y ] = value;
+        @matrix[ x + "_" + y ] = value
 
       get: (x, y) ->
-        @matrix[ x + "_" + y ];
+        @matrix[ x + "_" + y ]
 
 
     operation_price: 1
@@ -48,13 +48,13 @@ Fuzzy = new () ->
     insert_delete_price: 2
 
     _change_price: (a, b) ->
-      price = 0;
+      price = 0
       if((a is "" or b is "") and (a isnt b))
-        price = @insert_delete_price;
+        price = @insert_delete_price
       else
         price = if a is b then 0 else 1
 
-      price;
+      price
 
 
     calculate: (string_x, string_y) ->
@@ -88,8 +88,8 @@ Fuzzy = new () ->
 
 
     _calculate_length: (state) ->
-      x_length = state.string_x.length,
-      y_length = state.string_y.length;
+      x_length = state.string_x.length
+      y_length = state.string_y.length
 
       @_calculate_distance 0, 0, state
 
@@ -107,10 +107,10 @@ Fuzzy = new () ->
           @_calculate_distance i, j, state
           j++
 
-        i++;
+        i++
 
 
-      state.distances.get(x_length, y_length);
+      state.distances.get x_length, y_length
 
   StringsList = () ->
     @list = {}
@@ -217,7 +217,7 @@ Fuzzy = new () ->
     _check_array: (words, term, length_price) ->
       price = @_leve_price term
       _.select words, (data, word) ->
-        if _.uniq((word + term).split("")).length <= length_price)
+        if _.uniq((word + term).split "").length <= length_price
           levenstain.calculate(term, word) <= price
 
     _possible_values: (term) ->
@@ -226,7 +226,7 @@ Fuzzy = new () ->
       term_letters_count = _.uniq(term.split("")).length
       i = null
 
-      for i = -1 i < 1 i++
+      for i in [-1...1]
         string_length = term_length + i
         search_words = @paths.get_items_by_length(string_length)
         length_price = term_letters_count + i + 1
