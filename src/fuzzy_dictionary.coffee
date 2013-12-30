@@ -3,10 +3,6 @@ Fuzzy = new () ->
   helpers =
     splitter: new RegExp(/\s*-|,|\s\s*/)
 
-    get_search_strings: (item) ->
-      strings = item.index_strings.join("|").toLowerCase()
-      return _.uniq(strings.split("|"))
-
     get_search_substrings: (strings) ->
       collection = []
       for string in strings
@@ -22,7 +18,7 @@ Fuzzy = new () ->
 
 
     process_item: (item) ->
-      search_str = @get_search_strings item
+      search_str = _.uniq item.index_strings.join("|").toLowerCase().split("|")
 
       paths: search_str
       paths_index: @get_search_substrings search_str
@@ -71,14 +67,9 @@ Fuzzy = new () ->
 
       change_symbol_price = @_change_price char_ix, char_jy
 
-      if(i is 0 and j is 0)
-        return state.distances.set 0, 0, 0
-
-      if(i is 0 and 0 < j)
-        return state.distances.set 0, j, j
-
-      if(j is 0 and 0 < i)
-        return state.distances.set i, 0, i
+      return state.distances.set 0, 0, 0 if(i is 0 and j is 0)
+      return state.distances.set 0, j, j if(i is 0 and 0 < j)
+      return state.distances.set i, 0, i if(j is 0 and 0 < i)
 
       a = state.distances.get(i - 1, j) + 1
       b = state.distances.get(i, j - 1) + 1
@@ -139,7 +130,10 @@ Fuzzy = new () ->
 
 
   SearchIndex = (raw_data, options) ->
-    @options = _.extend {}, @_default_options, options
+    @options =
+      min_string_length: options.min_string_length or @_default_options.min_string_length
+      prices: options.prices or @_default_options.prices
+
     @paths = new StringsIndex()
     @tree = {}
     @_index = 0
@@ -161,13 +155,13 @@ Fuzzy = new () ->
         raw_item.index = @_index++
         item = helpers.process_item raw_item
 
-        _.each item.paths, (path) =>
+        for path in item.paths
           @paths.add path
           if @options.min_string_length < path.length
             @_construct_path @tree, path.split(''), data
 
     _construct_path: (node, path_arr, data) ->
-      _.each path_arr, (node_name) ->
+      for node_name in path_arr
         node[node_name] = node[node_name] or { data: [] }
         node = node[node_name]
         node.data.push data
@@ -206,19 +200,22 @@ Fuzzy = new () ->
       length = term.length
       last_price = 0
 
-      _.detect @options.prices, (price, word_length) ->
-        return true if word_length > length
+      for word_length, price of @options.prices
+        if word_length > length
+          return last_price
         last_price = price
-        return false
 
       last_price
 
 
     _check_array: (words, term, length_price) ->
       price = @_leve_price term
-      _.select words, (data, word) ->
+
+      selected = []
+
+      for word, data of words
         if _.uniq((word + term).split "").length <= length_price
-          levenstain.calculate(term, word) <= price
+          selected.push(data) if levenstain.calculate(term, word) <= price
 
     _possible_values: (term) ->
       possible_paths = []
@@ -230,7 +227,7 @@ Fuzzy = new () ->
         string_length = term_length + i
         search_words = @paths.get_items_by_length(string_length)
         length_price = term_letters_count + i + 1
-        possible_paths.push(@_check_array(search_words, term.substr(0, string_length), length_price))
+        possible_paths.push @_check_array(search_words, term.substr(0, string_length), length_price)
 
       possible_paths
 
@@ -239,8 +236,12 @@ Fuzzy = new () ->
       if values[1].length? then values[1] else _.flatten values
 
     _get_items: (paths) ->
-      return _.uniq _.flatten _.map paths, (path) =>
-        @get_node(path.value).node.data
+      items = []
+
+      for path in paths
+        items.push @get_node(path.value).node.data
+
+      _.uniq _.flatten items
 
     search: (term) ->
       @_get_items _.flatten @_possible_values term.toLowerCase()

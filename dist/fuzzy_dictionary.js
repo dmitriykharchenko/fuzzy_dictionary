@@ -4,11 +4,6 @@ Fuzzy = new function() {
   var Dictionary, SearchIndex, StringsIndex, StringsList, helpers, levenstain;
   helpers = {
     splitter: new RegExp(/\s*-|,|\s\s*/),
-    get_search_strings: function(item) {
-      var strings;
-      strings = item.index_strings.join("|").toLowerCase();
-      return _.uniq(strings.split("|"));
-    },
     get_search_substrings: function(strings) {
       var collection, length, string, _i, _len;
       collection = [];
@@ -26,7 +21,7 @@ Fuzzy = new function() {
     },
     process_item: function(item) {
       var search_str;
-      search_str = this.get_search_strings(item);
+      search_str = _.uniq(item.index_strings.join("|").toLowerCase().split("|"));
       return {
         paths: search_str,
         paths_index: this.get_search_substrings(search_str),
@@ -144,7 +139,10 @@ Fuzzy = new function() {
     }
   };
   SearchIndex = function(raw_data, options) {
-    this.options = _.extend({}, this._default_options, options);
+    this.options = {
+      min_string_length: options.min_string_length || this._default_options.min_string_length,
+      prices: options.prices || this._default_options.prices
+    };
     this.paths = new StringsIndex();
     this.tree = {};
     this._index = 0;
@@ -164,25 +162,35 @@ Fuzzy = new function() {
     add_items: function(raw_items) {
       var _this = this;
       return batch.use(raw_data).each(function(raw_item) {
-        var item;
+        var item, path, _i, _len, _ref, _results;
         raw_item.index = _this._index++;
         item = helpers.process_item(raw_item);
-        return _.each(item.paths, function(path) {
+        _ref = item.paths;
+        _results = [];
+        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+          path = _ref[_i];
           _this.paths.add(path);
           if (_this.options.min_string_length < path.length) {
-            return _this._construct_path(_this.tree, path.split(''), data);
+            _results.push(_this._construct_path(_this.tree, path.split(''), data));
+          } else {
+            _results.push(void 0);
           }
-        });
+        }
+        return _results;
       });
     },
     _construct_path: function(node, path_arr, data) {
-      return _.each(path_arr, function(node_name) {
+      var node_name, _i, _len, _results;
+      _results = [];
+      for (_i = 0, _len = path_arr.length; _i < _len; _i++) {
+        node_name = path_arr[_i];
         node[node_name] = node[node_name] || {
           data: []
         };
         node = node[node_name];
-        return node.data.push(data);
-      });
+        _results.push(node.data.push(data));
+      }
+      return _results;
     },
     get_node: function(path) {
       var next_node_name, node, node_names, path_length, return_data;
@@ -219,26 +227,37 @@ Fuzzy = new function() {
       }
     },
     _leve_price: function(term) {
-      var last_price, length;
+      var last_price, length, price, word_length, _ref;
       length = term.length;
       last_price = 0;
-      _.detect(this.options.prices, function(price, word_length) {
+      _ref = this.options.prices;
+      for (word_length in _ref) {
+        price = _ref[word_length];
         if (word_length > length) {
-          return true;
+          return last_price;
         }
         last_price = price;
-        return false;
-      });
+      }
       return last_price;
     },
     _check_array: function(words, term, length_price) {
-      var price;
+      var data, price, selected, word, _results;
       price = this._leve_price(term);
-      return _.select(words, function(data, word) {
+      selected = [];
+      _results = [];
+      for (word in words) {
+        data = words[word];
         if (_.uniq((word + term).split("")).length <= length_price) {
-          return levenstain.calculate(term, word) <= price;
+          if (levenstain.calculate(term, word) <= price) {
+            _results.push(selected.push(data));
+          } else {
+            _results.push(void 0);
+          }
+        } else {
+          _results.push(void 0);
         }
-      });
+      }
+      return _results;
     },
     _possible_values: function(term) {
       var i, length_price, possible_paths, search_words, string_length, term_length, term_letters_count, _i;
@@ -264,10 +283,13 @@ Fuzzy = new function() {
       }
     },
     _get_items: function(paths) {
-      var _this = this;
-      return _.uniq(_.flatten(_.map(paths, function(path) {
-        return _this.get_node(path.value).node.data;
-      })));
+      var items, path, _i, _len;
+      items = [];
+      for (_i = 0, _len = paths.length; _i < _len; _i++) {
+        path = paths[_i];
+        items.push(this.get_node(path.value).node.data);
+      }
+      return _.uniq(_.flatten(items));
     },
     search: function(term) {
       return this._get_items(_.flatten(this._possible_values(term.toLowerCase())));
